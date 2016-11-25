@@ -1,6 +1,7 @@
+SDK_PATH=/home/billy/esp8266/esp-open-sdk
 CC = xtensa-lx106-elf-gcc
-CFLAGS = -I. -mlongcalls -I/home/billy/esp8266/esp-open-sdk/sdk/include
-LDLIBS = -L. -L/home/billy/esp8266/esp-open-sdk/sdk/lib -nostdlib -Wl,--start-group -lmain -ldriver -lnet80211 -lwpa -llwip -lpp -lphy -Wl,--end-group -lgcc
+CFLAGS = -I. -mlongcalls -I$(SDK_PATH)/sdk/include
+LDLIBS = -L. -L$(SDK_PATH)/sdk/lib -nostdlib -Wl,--start-group -lmain -ldriver -lnet80211 -lwpa -llwip -lpp -lphy -Wl,--end-group -lgcc
 LDFLAGS = -Teagle.app.v6.ld
 
 main.bin: main
