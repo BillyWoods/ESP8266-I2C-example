@@ -98,12 +98,17 @@ void requestFrom(uint8_t i2c_addr)
 
 void read(uint8_t num_bytes, int8_t* data)
 {
+    if (num_bytes < 1) return;
+
     int i;
-    for(i = 0; i < num_bytes; i++)
+    for(i = 0; i < num_bytes - 1; i++)
     {
 	data[i] = i2c_master_readByte();
 	i2c_master_send_ack();
     }
+    // nack the final packet so that the slave releases SDA
+    data[num_bytes - 1] = i2c_master_readByte();
+    i2c_master_send_nack();
 }
     
 
