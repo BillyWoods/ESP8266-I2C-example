@@ -34,10 +34,10 @@ void loop(os_event_t* events);
 // 
 // These are the predefinitions:
 //--------------------------------------------------------------
-void beginTransmission(uint8_t i2c_addr);
-void requestFrom(uint8_t i2c_addr);
-void read(uint8_t num_bytes, int8_t* data);
-void write(uint8_t i2c_data);
+bool beginTransmission(uint8_t i2c_addr);
+bool requestFrom(uint8_t i2c_addr);
+bool read(uint8_t num_bytes, int8_t* data);
+bool write(uint8_t i2c_data);
 void endTransmission();
 
 //--------------------------------------------------------------
@@ -69,12 +69,14 @@ void loop(os_event_t* events)
     system_os_post(userProcTaskPrio, 0, 0);
 }
 
-void beginTransmission(uint8_t i2c_addr)
+bool beginTransmission(uint8_t i2c_addr)
 {
     uint8_t i2c_addr_write = (i2c_addr << 1);
+    
     i2c_master_start();
     i2c_master_writeByte(i2c_addr_write);
-    i2c_master_setAck(1);
+    
+    return i2c_master_checkAck();
 }
 
 void endTransmission()
@@ -82,33 +84,38 @@ void endTransmission()
     i2c_master_stop();
 }
 
-void write(uint8_t i2c_data)
+bool write(uint8_t i2c_data)
 {
     i2c_master_writeByte(i2c_data);
-    i2c_master_setAck(1);
+    
+    return i2c_master_checkAck();
 }
 
-void requestFrom(uint8_t i2c_addr)
+bool requestFrom(uint8_t i2c_addr)
 {
     uint8_t i2c_addr_read = (i2c_addr << 1) + 1;
+    
     i2c_master_start();
     i2c_master_writeByte(i2c_addr_read);
-    i2c_master_setAck(1);
+    
+    return i2c_master_checkAck();
 }
 
-void read(uint8_t num_bytes, int8_t* data)
+bool read(uint8_t num_bytes, int8_t* data)
 {
-    if (num_bytes < 1) return;
+    if (num_bytes < 1 || data == NULL) return false;
 
     int i;
     for(i = 0; i < num_bytes - 1; i++)
     {
-	data[i] = i2c_master_readByte();
-	i2c_master_send_ack();
+        data[i] = i2c_master_readByte();
+        i2c_master_send_ack();
     }
     // nack the final packet so that the slave releases SDA
     data[num_bytes - 1] = i2c_master_readByte();
     i2c_master_send_nack();
+
+    return true;
 }
     
 
@@ -139,36 +146,40 @@ void initHMC5883L()
     os_delay_us(100);
 }
 
-int8_t packets[6] = {0,0,0,0,0,0};
-int16_t compassData[3] = {0,0,0};
-
 void getRawData()
 {
+    int8_t packets[6] = {0,0,0,0,0,0};
+    int16_t compassData[3] = {0,0,0};
+
     // move compass's internal register pointer to start of X reg before we read
-    beginTransmission(HMC5883LRootAddress);
-    write(0x03);
+    if ( beginTransmission(HMC5883LRootAddress) )
+    {
+        write(0x03);
+        os_printf("Talking to HMC5883L...\r\n");
+    }
+    else
+        os_printf("Error communicating with HMC5883L!\r\n");
+
     endTransmission();
 
     requestFrom(HMC5883LRootAddress);
     os_delay_us(10);
-
     read(6, packets);
+    endTransmission();
     
     // assemble the 8 bit packets into 16 bit twos complement signed integers
     int i;
     for(i = 0; i < 3; i++)
     {
-	// zeroing compass data at some point in time is crucial so that the 
-	//   bitwise OR works as intended below
-	compassData[i] =  packets[2*i] << 8;
-	compassData[i] |= packets[2*i + 1];
+        // zeroing compass data at some point in time is crucial so that the 
+        //   bitwise OR works as intended below
+        compassData[i] =  packets[2*i] << 8;
+        compassData[i] |= packets[2*i + 1];
     }
 
-    endTransmission();
-
-    os_printf( "X: %d\r\nY: %d\r\nZ: %d\r\n",
+    // compass data in transmitted in order X, Z, Y
+    os_printf("X: %d\r\nY: %d\r\nZ: %d\r\n",
               compassData[0],
-	      compassData[2],
-	      compassData[1] );
-    os_delay_us(68000);
+              compassData[2],
+              compassData[1] );
 }
